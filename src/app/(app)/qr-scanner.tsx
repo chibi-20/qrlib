@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Html5QrcodeScanner } from "html5-qrcode";
+import type { Html5Qrcode } from "html5-qrcode";
 
 let idCounter = 0;
+
+type Status = "idle" | "starting" | "running" | "error";
 
 export function QrScanner({
   label,
@@ -14,27 +16,42 @@ export function QrScanner({
 }) {
   const [elementId] = useState(() => `qr-reader-${idCounter++}`);
   const [manualCode, setManualCode] = useState("");
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const [status, setStatus] = useState<Status>("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const hasScannedRef = useRef(false);
   const onScanRef = useRef(onScan);
+
   useEffect(() => {
     onScanRef.current = onScan;
   }, [onScan]);
 
   useEffect(() => {
-    let cancelled = false;
+    return () => {
+      const scanner = scannerRef.current;
+      scannerRef.current = null;
+      if (scanner) {
+        scanner
+          .stop()
+          .catch(() => {})
+          .finally(() => scanner.clear());
+      }
+    };
+  }, []);
+
+  async function startCamera() {
+    setStatus("starting");
+    setErrorMsg(null);
     hasScannedRef.current = false;
 
-    import("html5-qrcode").then(({ Html5QrcodeScanner }) => {
-      if (cancelled) return;
-      const scanner = new Html5QrcodeScanner(
-        elementId,
-        { fps: 10, qrbox: 220, rememberLastUsedCamera: true },
-        false,
-      );
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const scanner = new Html5Qrcode(elementId, { verbose: false });
       scannerRef.current = scanner;
-      scanner.render(
+
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 220 },
         (decodedText) => {
           if (hasScannedRef.current) return;
           hasScannedRef.current = true;
@@ -45,29 +62,36 @@ export function QrScanner({
           // expected: fires every frame with no QR code in view
         },
       );
-    }).catch((err) => {
-      setCameraError(err instanceof Error ? err.message : String(err));
-    });
-
-    return () => {
-      cancelled = true;
-      const scanner = scannerRef.current;
-      scannerRef.current = null;
-      if (scanner) {
-        scanner.clear().catch(() => {});
-      }
-    };
-  }, [elementId]);
+      setStatus("running");
+    } catch (err) {
+      setStatus("error");
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   return (
     <div className="space-y-3">
       <p className="text-sm font-medium text-slate-700">{label}</p>
-      <div id={elementId} className="overflow-hidden rounded-lg [&_video]:rounded-lg" />
-      {cameraError && (
+      <div id={elementId} className="overflow-hidden rounded-lg bg-slate-100 [&_video]:rounded-lg" />
+
+      {status !== "running" && (
+        <button
+          type="button"
+          onClick={startCamera}
+          disabled={status === "starting"}
+          className="w-full rounded-md bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        >
+          {status === "starting" ? "Requesting camera access…" : "Tap to start camera"}
+        </button>
+      )}
+
+      {status === "error" && errorMsg && (
         <p className="text-xs text-red-600">
-          Camera unavailable ({cameraError}). Use manual entry below.
+          Camera error: {errorMsg}. Make sure this site is allowed to use the camera in your
+          browser&apos;s site settings, then try again — or use manual entry below.
         </p>
       )}
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
