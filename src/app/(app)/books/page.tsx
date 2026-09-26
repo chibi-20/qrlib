@@ -20,12 +20,20 @@ export default async function BooksPage({
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Books</h1>
-        <Link
-          href="/books/print"
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
-          Print all QR labels
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/books/import"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            Import CSV
+          </Link>
+          <Link
+            href="/books/print"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            Print all QR labels
+          </Link>
+        </div>
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6">
